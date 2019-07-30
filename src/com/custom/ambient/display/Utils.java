@@ -180,4 +180,13 @@ public final class Utils {
         return tiltGestureEnabled(context) || handwaveGestureEnabled(context)
                 || pocketGestureEnabled(context);
     }
+
+    protected static Sensor getSensor(SensorManager sm, String type) {
+        for (Sensor sensor : sm.getSensorList(Sensor.TYPE_ALL)) {
+            if (type.equals(sensor.getStringType())) {
+                return sensor;
+            }
+        }
+        return null;
+    }
 }
