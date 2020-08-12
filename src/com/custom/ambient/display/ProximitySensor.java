@@ -21,9 +21,6 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.os.SystemClock;
-import android.os.PowerManager;
-import android.os.PowerManager.WakeLock;
 import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
@@ -36,13 +33,10 @@ public class ProximitySensor implements SensorEventListener {
     private static final String TAG = "ProximitySensor";
 
     private static final int POCKET_DELTA_NS = 1000 * 1000 * 1000;
-    private static final int WAKELOCK_TIMEOUT_MS = 300;
 
     private SensorManager mSensorManager;
     private Sensor mSensor;
     private Context mContext;
-    private PowerManager mPowerManager;
-    private WakeLock mWakeLock;
 
     private boolean mSawNear = false;
     private long mInPocketTime = 0;
@@ -57,7 +51,8 @@ public class ProximitySensor implements SensorEventListener {
         mSensorManager = (SensorManager)
                 mContext.getSystemService(Context.SENSOR_SERVICE);
         if (mSensorManager != null) {
-            String customProximity = mContext.getResources().getString(R.string.config_custom_proximity);
+            String customProximity = mContext.getResources().getString(
+                                        R.string.config_custom_proximity);
             if (!customProximity.isEmpty()) {
                 mSensorManager = mContext.getSystemService(SensorManager.class);
                 mSensor = Utils.getSensor(mSensorManager, customProximity);
@@ -65,33 +60,24 @@ public class ProximitySensor implements SensorEventListener {
                 mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
             }
         }
-        mPowerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
-        mWakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         mExecutorService = Executors.newSingleThreadExecutor();
+    }
+
+    private Future<?> submit(Runnable runnable) {
+        return mExecutorService.submit(runnable);
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        boolean isRaiseToWake = Utils.isRaiseToWakeEnabled(mContext);
         boolean isNear = event.values[0] < mSensor.getMaximumRange();
         if (mSawNear && !isNear) {
             if (shouldPulse(event.timestamp)) {
-                if (isRaiseToWake) {
-                    mWakeLock.acquire(WAKELOCK_TIMEOUT_MS);
-                    mPowerManager.wakeUp(SystemClock.uptimeMillis(),
-                            PowerManager.WAKE_REASON_GESTURE, TAG);
-                } else {
-                    Utils.launchDozePulse(mContext);
-                }
+                Utils.launchDozePulse(mContext);
             }
         } else {
             mInPocketTime = event.timestamp;
         }
         mSawNear = isNear;
-    }
-
-    private Future<?> submit(Runnable runnable) {
-        return mExecutorService.submit(runnable);
     }
 
     private boolean shouldPulse(long timestamp) {
